@@ -43,7 +43,7 @@ for (package in c('janitor','skimr', 'correlationfunnel', 'DataExplorer')) {
 }
 
 # tidymodels
-for (package in c('gghighlight', 'patchwork', 'ggplot2', 'GGally', 'highcharter','correlationfunnel')) {
+for (package in c('gghighlight', 'patchwork', 'ggplot2', 'GGally', 'highcharter','correlationfunnel','plotly')) {
   if (!require(package, character.only=T, quietly=T)) {
     install.packages(package)
     library(package, character.only=T)
@@ -104,14 +104,19 @@ skim(hotel_stays)
 
 ```{r}
 hotel_stays %>%
-  count(children)
+  count(children) %>%
+  plot_ly(labels = ~children, values = ~n) %>%
+  add_pie(hole = 0.6) %>%
+  layout(title = "subject",  showlegend = T,
+         xaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE),
+         yaxis = list(showgrid = FALSE, zeroline = FALSE, showticklabels = FALSE))
+
 ```
 
 
 ## 막대그래프
 
 ```{r fig.height=5, fig.width=10}
-library(plotly)
 hotel_stays %>%
   mutate(arrival_date_month = factor(arrival_date_month,
     levels = month.name
@@ -160,6 +165,36 @@ hotel_stays %>%
 
 ```
 
+```{r}
+hotel_stays %>%
+  mutate(arrival_date_month = factor(arrival_date_month,
+    levels = month.name
+  )) %>%
+  count(hotel, arrival_date_month, children) %>%
+  group_by(hotel, children) %>%
+  mutate(proportion = n / sum(n)) %>%
+  plot_ly(x = ~arrival_date_month , y = ~proportion, color = ~children, type = "bar") %>%
+  layout(title = "Occupation Type Group",
+         barmode = 'group',
+         xaxis = list(title = ""),
+         yaxis = list(title = ""))
+
+```
+
+```{r}
+trace_0 <- rnorm(100, mean = 5)
+trace_1 <- rnorm(100, mean = 0)
+trace_2 <- rnorm(100, mean = -5)
+x <- c(1:100)
+
+data <- data.frame(x, trace_0, trace_1, trace_2)
+
+fig <- plot_ly(data, x = ~x, y = ~trace_0, name = 'trace 0', type = 'scatter', mode = 'lines') 
+fig <- fig %>% add_trace(y = ~trace_1, name = 'trace 1', mode = 'lines+markers') 
+fig <- fig %>% add_trace(y = ~trace_2, name = 'trace 2', mode = 'markers')
+
+fig
+```
 
 ## 데이터 한판에 보기
 ```{r}
@@ -215,20 +250,3 @@ hotel_stays %>% select(-reservation_status_date) %>% binarize(n_bins = 5, thresh
 hotel_stays %>% ggpairs(columns=c(2,7,26), aes(colour=children, alpha=0.4),
                  lower=list(continuous=wrap("smooth", method="loess", se=F)))
 ```
-
-
-```{r}
-hotel_stays %>%
-  count(children)
-```
-
-```{r}
-hotel_stays %>%
-  count(children)
-```
-
-```{r}
-hotel_stays %>%
-  count(children)
-```
-
