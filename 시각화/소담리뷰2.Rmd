@@ -1,0 +1,376 @@
+---
+title: "소담소담리뷰2" 
+# author: "검색추천 TF2"
+# date: "2020년 1월 7일"
+
+output: 
+  flexdashboard::flex_dashboard:
+    source_code: embed
+    vertical_layout: scroll
+    theme: yeti
+---
+
+
+``` {js}
+// Inverse color of navigation bar.
+$('.navbar-inverse').removeClass('navbar-inverse').addClass('navbar-default');
+```
+
+```{r setup, include=FALSE}
+# Load necessary packages. 
+library(flexdashboard) # Dashboard package
+library(highcharter) # Interactive data visualizations
+library(plotly) # Interactive data visualizations
+library(viridis) # Color gradients
+library(tidyverse) # Metapackge
+library(countrycode) # Converts country names/codes
+library(rjson) # JSON reader
+library(crosstalk) # Provides interactivity for HTML widgets
+library(DT) # Displaying data tables
+```
+
+```{r include=FALSE}
+# Read in data. 
+setwd("~/Downloads")
+review_cust<- readRDS("review_cust.RDS")
+final_sd <- readRDS("final_sd.RDS")
+
+final_sd$EC_CUST_GRD_CD <- ifelse(final_sd$EC_CUST_GRD_CD=="SS","VVIP",
+                                     ifelse(final_sd$EC_CUST_GRD_CD=="CC","VIP",
+                                            ifelse(final_sd$EC_CUST_GRD_CD=="DD","GOLD","그외")))
+
+final_sd$age5 <- cut(final_sd$AGE_VAL,
+                     breaks = c(seq(25,70,5)),
+                     labels = c("25_29","30_34","35_39","40_44","45_49","50_54","55_59","60_64","65_69"),
+                     include.lowest = T,
+                     right = F)
+
+final_sd$age5 <- as.character(final_sd$age5)
+final_sd[is.na(final_sd$age5),"age5"]<-"그외"
+
+review_cust$age5 <- cut(review_cust$AGE_VAL,
+                       breaks = c(seq(25,70,5)),
+                       labels = c("25_29","30_34","35_39","40_44","45_49","50_54","55_59","60_64","65_69"),
+                       include.lowest = T,
+                       right = F)
+  review_cust$age5 <- as.character(review_cust$age5)
+  review_cust[is.na(review_cust$age5),"age5"]<-"그외"
+
+data22 <-  review_cust %>%
+  dplyr::select(CUST_NO,AGE_VAL) %>%
+  unique() %>%
+  group_by(AGE_VAL) %>%
+  summarise(num = n()) %>%
+  filter(!AGE_VAL %in% c(1,121))
+
+# review_cust <- review_cust %>%
+#   mutate(AGE5_UNIT_CD_N = ifelse(AGE5_UNIT_CD %in% c(21,22),"30미만",
+#                                  ifelse(AGE5_UNIT_CD %in% c(71,"Z"),"그외",AGE5_UNIT_CD)))
+
+data222 <-  review_cust %>%
+  dplyr::select(CUST_NO,age5) %>%
+  unique() %>%
+  group_by(age5) %>%
+  summarise(num = n()) 
+
+review_cust$EC_CUST_GRD_CD <- ifelse(review_cust$EC_CUST_GRD_CD=="SS","VVIP",
+                                     ifelse(review_cust$EC_CUST_GRD_CD=="CC","VIP",
+                                            ifelse(review_cust$EC_CUST_GRD_CD=="DD","GOLD","그외")))
+
+data2222 <-  review_cust %>%
+  dplyr::select(CUST_NO,EC_CUST_GRD_CD) %>%
+  unique() %>%
+  group_by(EC_CUST_GRD_CD) %>%
+  summarise(num = n()) 
+
+a1<-final_sd %>%
+  filter(ITEM_CD=="556063") %>%
+  dplyr::select(CUST_NO,EC_CUST_GRD_CD) %>%
+  unique() %>%
+  group_by(EC_CUST_GRD_CD) %>%
+  summarise(num = n()) %>%
+  na.omit()
+
+  a2<-final_sd %>%
+    filter(ITEM_CD=="521795") %>%
+  dplyr::select(CUST_NO,EC_CUST_GRD_CD) %>%
+    unique() %>%
+    group_by(EC_CUST_GRD_CD) %>%
+    summarise(num = n()) %>%
+    na.omit()
+  
+  a3<-final_sd %>%
+    filter(ITEM_CD=="344165") %>%
+  dplyr::select(CUST_NO,EC_CUST_GRD_CD) %>%
+    unique() %>%
+    group_by(EC_CUST_GRD_CD) %>%
+    summarise(num = n()) %>%
+    na.omit()
+  
+
+  a11<-final_sd %>%
+    filter(ITEM_CD=="556063") %>%
+    dplyr::select(CUST_NO,age5) %>%
+    unique() %>%
+    group_by(age5) %>%
+    summarise(num = n()) %>%
+    na.omit()
+  
+  a22<-final_sd %>%
+    filter(ITEM_CD=="521795") %>%
+    dplyr::select(CUST_NO,age5) %>%
+    unique() %>%
+    group_by(age5) %>%
+    summarise(num = n()) %>%
+    na.omit()
+  
+  
+  a33<-final_sd %>%
+    filter(ITEM_CD=="344165") %>%
+    dplyr::select(CUST_NO,age5) %>%
+    unique() %>%
+    group_by(age5) %>%
+    summarise(num = n()) %>%
+    na.omit()
+
+```
+
+```{r include=FALSE}
+# Create a custom theme for the plots. 
+options(warn=-1)
+Sys.setlocale(category = "LC_CTYPE", locale = "ko_KR.UTF-8")
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+library(knitr)
+
+blank_theme <- theme_minimal(base_family = "NanumGothic")+
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank(),
+    panel.border = element_blank(),
+    panel.grid=element_blank(),
+    axis.ticks = element_blank(),
+    plot.title=element_text(size=20, face="bold",hjust = 0.5)
+  )
+
+custom_theme <- hc_theme(
+  colors = c('#5CACEE', 'green', 'red'),
+  chart = list(
+    backgroundColor = '#FAFAFA', 
+    plotBorderColor = "black"),
+  xAxis = list(
+    gridLineColor = "E5E5E5", 
+    labels = list(style = list(color = "#333333")), 
+    lineColor = "#E5E5E5", 
+    minorGridLineColor = "#E5E5E5", 
+    tickColor = "#E5E5E5", 
+    title = list(style = list(color = "#333333"))), 
+  yAxis = list(
+    gridLineColor = "#E5E5E5", 
+    labels = list(style = list(color = "#333333")), 
+    lineColor = "#E5E5E5", 
+    minorGridLineColor = "#E5E5E5", 
+    tickColor = "#E5E5E5", 
+    tickWidth = 1, 
+    title = list(style = list(color = "#333333"))),   
+  title = list(style = list(color = '#333333', fontFamily = "Lato")),
+  subtitle = list(style = list(color = '#666666', fontFamily = "Lato")),
+  legend = list(
+    itemStyle = list(color = "#333333"), 
+    itemHoverStyle = list(color = "#FFF"), 
+    itemHiddenStyle = list(color = "#606063")), 
+  credits = list(style = list(color = "#666")),
+  itemHoverStyle = list(color = 'gray'))
+
+```
+
+<style>
+.colored {
+  background-color: #FAFAFA;
+}
+</style>
+
+
+구매고객 특성
+=======================================================================
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+
+### 나이  {.no-padding .colored }
+```{r fig.height=6}
+highchart() %>%
+  hc_add_series(name="나이", data22$num, type="column", color='rgba(0, 139, 139, 0.30)', showInLegend=F) %>% 
+  hc_add_series(name="나이", data22$num, type="spline", color="green") %>% 
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.1f}<br/>",
+             shared = FALSE) %>% 
+  hc_yAxis(title=list(text='고객수')) %>% 
+  hc_xAxis(title=list(text='나이')) %>%
+  hc_xAxis(categories = data22$AGE_VAL)
+```
+
+ Column {.tabset .tabset-fade data-width=600 .colored }
+-----------------------------------------------------------------------
+
+
+### 5세단위 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+  hc_add_series(data222, hcaes(x = age5, y = num, 
+                               color = age5), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명수: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 457명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+#  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+ hc_add_theme(custom_theme)
+```
+
+
+### 등급별 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+  hc_add_series(data2222, hcaes(x = EC_CUST_GRD_CD, y = num, 
+                               color = EC_CUST_GRD_CD), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 457명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+  #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+등급별 비교
+=======================================================================
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+
+### 등급  {.no-padding .colored }
+```{r fig.height=6}
+highchart() %>% 
+  hc_add_series(data2222, hcaes(x = EC_CUST_GRD_CD, y = num, 
+                               color = EC_CUST_GRD_CD), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 457명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+  #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+ Column {.tabset .tabset-fade data-width=600 .colored }
+-----------------------------------------------------------------------
+### 히말라야치약 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+  hc_add_series(a1, hcaes(x = EC_CUST_GRD_CD, y = num, 
+                               color = EC_CUST_GRD_CD), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 8139명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+  #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+### 퍼퓸드몽드 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+  hc_add_series(a2, hcaes(x = EC_CUST_GRD_CD, y = num, 
+                               color = EC_CUST_GRD_CD), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 8618명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+  #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+### 한장빨래 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+  hc_add_series(a3, hcaes(x = EC_CUST_GRD_CD, y = num, 
+                               color = EC_CUST_GRD_CD), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 73276명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+  #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+
+나이별 비교
+=======================================================================
+
+Column {data-width=600}
+-----------------------------------------------------------------------
+### 나이  {.no-padding .colored }
+```{r fig.height=6}
+highchart() %>% 
+  hc_add_series(data222, hcaes(x = age5, y = num, 
+                               color = age5), type = "pie") %>%
+  hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명수: <b>{point.y}</b>")) %>%
+  hc_title(text = "<b>총원 : 457명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+#  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+  hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                              style = list(fontSize = 13)), 
+                            size = 350)) %>% 
+ hc_add_theme(custom_theme)
+```
+
+ Column {.tabset .tabset-fade data-width=600 .colored }
+-----------------------------------------------------------------------
+### 히말라야치약 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+    hc_add_series(a11, hcaes(x = age5, y = num, 
+                            color = age5), type = "pie") %>%
+    hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+    hc_title(text = "<b>총원 : 8139명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+    #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+    hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                                style = list(fontSize = 13)), 
+                              size = 350)) %>% 
+    hc_add_theme(custom_theme)
+```
+
+### 퍼퓸드몽드 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+    hc_add_series(a22, hcaes(x = age5, y = num, 
+                            color = age5), type = "pie") %>%
+    hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+    hc_title(text = "<b>총원 : 8618명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+    #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+    hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                                style = list(fontSize = 13)), 
+                              size = 350)) %>% 
+    hc_add_theme(custom_theme)
+```
+
+### 한장빨래 {.no-padding}
+```{r fig.height=5}
+highchart() %>% 
+    hc_add_series(a33, hcaes(x = age5, y = num, 
+                            color = age5), type = "pie") %>%
+    hc_tooltip(borderWidth = 1.5, headerFormat = "", pointFormat = paste("비율: <b>{point.AGE5_UNIT_CD} ({point.percentage:.1f}%)</b> <br> 명: <b>{point.y}</b>")) %>%
+    hc_title(text = "<b>총원 : 73276명</b>", style = (list(fontSize = '14px'))) %>%  #제목
+    #  hc_subtitle(text = "3일간", style = (list(fontSize = '10px'))) %>% #부제목
+    hc_plotOptions(pie = list(dataLabels = list(distance = 5, 
+                                                style = list(fontSize = 13)), 
+                              size = 350)) %>% 
+    hc_add_theme(custom_theme)
+```

@@ -1,0 +1,351 @@
+---
+title: "방송 편성 데이터 분석"
+output:
+  html_document: 
+    fig_caption: yes
+    fig_height: 6
+    highlight: tango
+    theme: cerulean
+    toc: yes
+    toc_float: yes
+---
+
+```{r set up ,include=FALSE}
+# Load necessary packages. 
+library(dplyr)
+library(ggplot2)
+library(tidyverse) # Metapackge
+# tidymodels
+for (package in c('janitor','skimr', 'correlationfunnel', 'DataExplorer')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+# tidymodels
+for (package in c('gghighlight', 'patchwork', 'ggplot2', 'GGally', 'highcharter','correlationfunnel','plotly')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+# Core
+for (package in c('doParallel', 'tidyverse', 'tidyquant', 'knitr')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+library(extrafont)
+library(data.table)
+library(PerformanceAnalytics)
+library(IRdisplay)
+options(scipen = 100) #지수형태가 보기 싫을때
+
+setwd("~/Downloads")
+dt <- read.csv("mdl_df.csv",fileEncoding = "CP949")
+```
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE)
+
+theme_set(theme_bw() +
+         theme(plot.title = element_text(size = 15, face = "bold"),
+               plot.subtitle = element_text(size = 12, face = "bold"),
+               axis.text.x = element_text(size = 8),
+               axis.text.y = element_text(size = 8),
+               axis.title.x = element_text(size = 12),
+               axis.title.y = element_text(size = 12),
+               legend.text =element_text(size = 12),
+               legend.title =element_text(size = 12)
+              ) +
+           theme_grey(base_family='NanumGothic')
+          )
+```
+    
+    
+     
+  
+     
+     
+##  1. 방송 편성 데이터 확인
+
+### 1_1데이터 사용 기간
+##### - 16년 1월 데이터부터 호출 (모델은 17년부터)
+     
+     
+     
+      
+       
+### 1_2데이터 제외사항  
+#### - 렌탈, 보험, 여행, 핸드폰 카테고리 제외  (유형상품)
+#### - 순환방송 제외  
+#### - 가중분이 5뷴보다 크고 노출분이 10분보다 큰 방송 제외  
+  
+    
+    
+    
+    
+## 2. 연도별 카테고리 비중 확인  
+  
+#### - 실제 연도별 카테고리 비중이 매우 다르다는 것을 확인  
+#### - 건강식품과 이미용 카테고리가 증가하고 있다는것을 확인
+  
+```{r}
+dt %>%
+    mutate(year = year(BROAD_DT)) %>%
+  # filter(year(BROAD_DT) >= 2020) %>%
+  # filter(HH %in% 7:10) %>%
+  dplyr::count(year,PRD_GRP_NM) %>%
+  dplyr::ungroup() %>%
+  dplyr::group_by(year) %>%
+  dplyr::mutate(proportion_sum = sum(n)) %>%
+  dplyr::mutate(proportion = n / proportion_sum) %>% 
+  dplyr::filter(!PRD_GRP_NM %in% c("컴퓨터","기타","디지털기기","가구") ) %>%
+  # plot_ly( x = ~arrival_date_month , y = ~proportion, color = ~children,type = 'bar', name = 'aa') +
+  # facet_wrap(~hotel, ncol= 5, scales = "free")
+  ggplot(aes(PRD_GRP_NM, proportion, fill = PRD_GRP_NM)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  labs(
+    x = NULL,
+    y = "카테고리별 비중",
+    fill = NULL) +
+  # theme_set(theme_grey(base_family='NanumGothic')) +
+    coord_flip() +
+    facet_wrap(~year) +
+  geom_label(aes(label = round(proportion,2)), size = 3, position=position_dodge(width=0.9))+
+  scale_fill_discrete(guide=guide_legend(reverse=T))
+
+# a
+# ggplotly(a)
+  # )
+```
+  
+      
+## 3. 연도별 가중분 평균 분포   
+    
+#### - 연도별로 평일, 토, 일의 차이가 매우 크다는 것을 확인
+#### - 2020년에는 22시이후 매우 큰 가분취를 갖고 있음  
+    
+  
+```{r}
+dt %>%
+  mutate(year = year(BROAD_DT)) %>%
+  # filter(year(BROAD_DT) >= 2020) %>%
+  group_by(year, WEK , 노출HH) %>%
+  dplyr::summarise(mean = mean(가중분취급액)) %>%
+  ggplot(aes(x=노출HH,y=mean,group = WEK,color = WEK)) + geom_line() +
+  facet_wrap(~year) +
+  theme_set(theme_bw() +
+              theme_grey(base_family='NanumGothic') +
+         theme(plot.title = element_text(size = 15, face = "bold"),
+               plot.subtitle = element_text(size = 12, face = "bold"),
+               axis.text.x = element_text(size = 8),
+               axis.text.y = element_text(size = 8),
+               axis.title.x = element_text(size = 12),
+               axis.title.y = element_text(size = 12),
+               legend.text =element_text(size = 12),
+               legend.title =element_text(size = 12)
+              ) 
+           
+          ) + geom_vline(xintercept = 22, color = "red", linetype = 2)+
+    xlab("시간") + ylab("가중분당취급액") + xlim(c(0,24))
+
+
+```
+  
+  
+  
+  
+### 3_1. 연도별 가중분 평균 분포  (특정 카테고리)
+  
+#### - 특정 카테고리별로 만을 봐도 연도별의 차이가 명확히 존재
+#### - 2019년에는 생활용품이 저녁시간에 많이 팔렸지만 2020년에는 오후로 바뀜
+  
+```{r}
+plt <- dt%>%
+  dplyr::filter(PRD_GRP_NM %in% c("생활용품","일반식품","이미용","건강식품","의류","트렌드의류")) %>%
+  dplyr::filter(!(year(BROAD_DT)=='2020'& month(BROAD_DT)=='11')) %>%
+  dplyr::filter(!(year(BROAD_DT)=='2020'& month(BROAD_DT)=='10')) %>%
+  dplyr::group_by(year(BROAD_DT),PRD_GRP_NM,노출HH) %>%
+  dplyr::summarize(가중분취급액=mean(가중분취급액)) %>%
+  dplyr::rename(year = `year(BROAD_DT)`,
+                시간 = 노출HH) %>%
+  ggplot(aes(x=시간,
+             y=가중분취급액,
+             size = 가중분취급액,
+             colour = PRD_GRP_NM,
+             frame = year)) +
+  geom_point(alpha=0.6) %>%
+  # theme_minimal() %>%
+  highlight("plotly_selected")
+
+pltly = ggplotly(plt)
+pltly
+```
+  
+   
+  
+### 3_2. 월별 시간 가중분당취급액 평균 분포 
+  
+#### - 8->9월 오후 시간대가 증가하고 있음을 확인
+#### - 월별 특성들이 다르게 분포
+  
+  
+```{r}
+plt2 <- dt%>%
+  filter(year(BROAD_DT)=='2020',month(BROAD_DT)!='11',month(BROAD_DT)!='10') %>%
+  # dplyr::filter(PRD_GRP_NM %in% c("생활용품","일반식품","이미용","건강식품","의류","트렌드의류")) %>%
+  dplyr::group_by(month(BROAD_DT),노출HH) %>%
+  dplyr::summarize(가중분취급액=mean(가중분취급액)) %>%
+  dplyr::rename(month = `month(BROAD_DT)`,
+                시간 = 노출HH) %>%
+  ggplot(aes(x=시간,
+             y=가중분취급액,
+             size = 가중분취급액,
+             # colour = 'PRD_GRP_,
+             frame = month)) +
+  geom_point(alpha=0.6,color = '#1050DC') %>%
+  # theme_minimal() %>%
+  highlight("plotly_selected")
+
+pltly2 = ggplotly(plt2)
+pltly2
+```  
+  
+## 4 방송 일수 차이별 가분취 평균  
+  
+#### 가구, 보석, 가전, 헤어미용 등, 방송차이에 민감한 방송 카테고리 확인  
+#### 그외에 의류식품은 매우 민감하지는 않은 상황   
+  
+```{r message=FALSE, warning=FALSE}
+dt %>%
+  group_by(최근방송일 , PRD_GRP_NM) %>%
+  # dplyr::filter(year(BROAD_DT) >= 2020) %>%
+  dplyr::filter(최근방송일>=3,PRD_GRP_NM != '디지털기기',PRD_GRP_NM != '기타') %>%
+  dplyr::summarise(mean = mean(가중분취급액)) %>%
+  ggplot(aes(x=최근방송일,y=mean,group = PRD_GRP_NM,color = PRD_GRP_NM)) + geom_line() + 
+facet_wrap(~PRD_GRP_NM) +
+    theme(legend.position = 'none') + xlim(3,30) + ylim(0,17000000)+
+  xlab("방송차이일수") + ylab("가중분당취급액")
+
+```
+
+  
+  
+## 5 방송 누적별 가분취 평균    
+     
+#### 가구, 가전, 생활용품, 건강식품 등이 누적에 따른 상향을 보임  
+#### 의류, 이미용, 일반식품, 주방용품 등은 누적에 상관없이 비슷한 패턴 확인  
+  
+```{r message=FALSE, warning=FALSE}
+dt %>%
+  group_by(IT_SF , PRD_GRP_NM) %>%
+  dplyr::filter(PRD_GRP_NM != '디지털기기',PRD_GRP_NM != '기타',PRD_GRP_NM !='레포츠용품') %>%
+  dplyr::summarise(mean = mean(가중분취급액)) %>%
+  ggplot(aes(x=IT_SF,y=mean,group = PRD_GRP_NM,color = PRD_GRP_NM)) + geom_line() + 
+facet_wrap(~PRD_GRP_NM) +
+    theme(legend.position = 'none') + xlim(1,50) + ylim(0,10000000) +
+    xlab("누적방송횟수") + ylab("가중분당취급액") 
+```
+
+## 6 상품 가격별 가분취 평균    
+     
+#### 카테고리 가격별로 매우 다양한 차이가 확인된다.
+#### 주방용품, 헤어/미용기구 등등
+  
+```{r fig.height=5, fig.width=10}
+dt %>%
+  group_by(AVG_PRICE , PRD_GRP_NM) %>%
+    # filter(!PRD_GRP_NM %in% c("가구","교육문화","일반가전","컴퓨터")) %>%
+  dplyr::filter(PRD_GRP_NM != '디지털기기',PRD_GRP_NM != '기타',PRD_GRP_NM !='레포츠용품') %>%
+  dplyr::summarise(mean = mean(가중분취급액)) %>%
+  ggplot(aes(x=AVG_PRICE,y=mean,group = PRD_GRP_NM,color = PRD_GRP_NM)) + geom_line() + 
+facet_wrap(~PRD_GRP_NM) +
+    theme(legend.position = 'none') + xlim(0,300000) + ylim(0,12000000) +
+    geom_vline(xintercept = seq(0,300000,50000), color = "red", linetype = 2, size = 0.2)  +
+  xlab("가격") + ylab("가중분취급액")
+```
+      
+    
+      
+## 7 실제 모델에 중요하게 작용하는 변수들  
+  
+이렇게 다양한 분포에서 방송예측에 가장 큰 영향을 주는 요인들이 어떤것인가?  
+실제 직전 방송에 대한 데이터도 부족한 상태이며 컨디션이 다르다..  
+  
+직전 비슷한 방송을 찾아주는 것!  
+또한 그게 없다면 더 큰범위의 카테고리, 시간을 넓히며 찾는 방법 사용  
+   
+  
+    
+    
+      
+         
+### 7_1 중요변수 - 최근 방송 취급액 (6회)  
+비슷 컨디션의 최근 방송 6회의 평균을 갖고오는 개념  
+모델에서 가장 중요한 역할을 하고있다  
+실제 결과를 보면 매우 유사한 흐름을 따라가고 있는것을 확인  
+  
+```{r}
+
+df <- dt %>%
+  filter(year(BROAD_DT) >= 2020) %>%
+  group_by(노출HH) %>%
+  summarise(노_평_분취급액 = mean(노_평_분취급액),
+                   Y_REAL = mean(Y_REAL))
+
+highchart() %>% 
+  hc_add_series(name="총수량", df$Y_REAL, type="column", color='rgba(255, 192, 203, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="최근 방송 노출평균취급액", df$노_평_분취급액, type="column", color='rgba(68, 170, 255, 0.30)', showInLegend=FALSE) %>% 
+    hc_title(text = "최근 방송 노출평균취급액") %>%  ## 주제목  
+  hc_subtitle(text = "빨간색 : 실제  , 파란색 : 노출평균취급액") %>% # 부제목
+  hc_add_series(name="최근 방송 노출평균수량", df$노_평_분취급액, type="spline", color="#44AAFF") %>% 
+  hc_add_series(name="총수량",df$Y_REAL, type="spline", color="#FFC0Cb") %>% 
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.3f}<br/>",
+             shared = FALSE) %>% 
+  hc_yAxis(title=list(text='취급액')) %>% 
+  hc_xAxis(title=list(text='시간'))  %>%
+  hc_xAxis(categories = df$노출HH) #x축 값 넣
+```
+  
+
+
+### 7_2 카테고리별 확인 (평균 방송 취급액)    
+전체 평균이 아닌 카테고리별로 나누어서 생각해 본다면 일부 카테괼를 제외하고
+매우 유사한 흐름을 따라가고 있다.
+
+
+```{r}
+dt %>%
+  group_by(노출HH , PRD_GRP_NM) %>%
+    # filter(year(BROAD_DT) >= 2020) %>%
+  dplyr::filter(PRD_GRP_NM != '디지털기기',PRD_GRP_NM != '기타',PRD_GRP_NM !='레포츠용품') %>%
+  dplyr::summarise(mean = mean(Y_REAL),
+                   mean2 = mean(노_직_분취급액)) %>%
+  ggplot(aes(x=노출HH,y=mean,group = PRD_GRP_NM)) + geom_line(col='red') + 
+  ggplot2::geom_line(aes(x=노출HH,y=mean2,group = PRD_GRP_NM),col='blue') + 
+  xlab("시간") + ylab("취급액") +
+facet_wrap(~PRD_GRP_NM)
+    # theme(legend.position = 'none') + xlim(0,300000) + ylim(0,12000000)
+```
+  
+### 7_3 체인 룰 변수와의 상관관계    
+실제 취급액과 상관성을 확인해 보면 매우 높은 상관관계를 갖고 있으며,  
+그외에 변수들도 유의미한 영향을 주고있다.  
+ 
+
+```{r}
+dt %>%
+  dplyr::select(Y_REAL,노_직_분취급액,노_평_분취급액,전달취급액,SUM_RUNTIME,평_가격) %>%
+  chart.Correlation(histogram=TRUE, pch=19)
+```
+

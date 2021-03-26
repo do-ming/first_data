@@ -1,0 +1,228 @@
+---
+title: "R Notebook"
+output: html_notebook
+
+---
+<style type="text/css">
+
+body, td {
+   font-size: 12px;
+}
+code.r{
+  font-size: 12px;
+}
+pre {
+  font-size: 12px
+}
+</style>
+
+```{r set up ,include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(cache = T, warning = F,
+                      message = F, echo = T, dpi = 180,
+                      fig.width = 8, fig.height = 5)
+library(dplyr)
+library(highcharter)
+library(ggplot2)
+library(PerformanceAnalytics)
+
+custom_theme <- hc_theme(
+  colors = c('#5CACEE', 'green', 'red'),
+  chart = list(
+    backgroundColor = '#FAFAFA', 
+    plotBorderColor = "black"),
+  xAxis = list(
+    gridLineColor = "E5E5E5", 
+    labels = list(style = list(color = "#333333")), 
+    lineColor = "#E5E5E5", 
+    minorGridLineColor = "#E5E5E5", 
+    tickColor = "#E5E5E5", 
+    title = list(style = list(color = "#333333"))), 
+  yAxis = list(
+    gridLineColor = "#E5E5E5", 
+    labels = list(style = list(color = "#333333")), 
+    lineColor = "#E5E5E5", 
+    minorGridLineColor = "#E5E5E5", 
+    tickColor = "#E5E5E5", 
+    tickWidth = 1, 
+    title = list(style = list(color = "#333333"))),   
+  title = list(style = list(color = '#333333', fontFamily = "Lato")),
+  subtitle = list(style = list(color = '#666666', fontFamily = "Lato")),
+  legend = list(
+    itemStyle = list(color = "#333333"), 
+    itemHoverStyle = list(color = "#FFF"), 
+    itemHiddenStyle = list(color = "#606063")), 
+  credits = list(style = list(color = "#666")),
+  itemHoverStyle = list(color = 'gray'))
+```
+
+## 방송 판매 데이터 확인
+  
+### 데이터 사용 기간
+#### - 17년 1월 데이터부터 호출
+###   
+
+### 이슈내용  
+#### 1. 월별 총 수량 분포 확인
+#### 2. 파생 변수와 총수량의 비교
+
+
+###  
+###  
+### 데이터 확인    
+```{r}
+setwd("~/Documents/배송예측")
+dt <- readRDS("mdl_df.RDS")
+head(dt)
+```
+
+##
+## 월별 총 판매수량 확인
+###      
+###      
+
+### 17년 1월~ 20년 6월(6월 일부제외 이므로 낮은 수량)
+```{r}
+
+# Create tibble for overall suicides by country
+country_bar <- dt %>%
+  mutate(DT = substr(BROAD_DT,1,7)) %>%
+  group_by(DT) %>%
+  summarise(sum = sum(Y_REAL))
+  
+
+# Create interactive bar plot
+highchart() %>%
+  hc_add_series(country_bar, hcaes(x = DT, y = sum, color = sum), type = "bar")  %>% 
+  hc_tooltip(borderWidth = 1.5, 
+             pointFormat = paste("TOT_ORD: <b>{point.y}</b>")) %>%
+  hc_legend(enabled = FALSE) %>%
+  hc_title(text = "월별_총수량") %>%  ## 주제목  
+  hc_subtitle(text = "2017-2020_06") %>% # 부제목
+  hc_xAxis(categories = country_bar$DT, 
+           labels = list(step = 1),
+           min = 0, max = 25,  #보이는 갯수 확인하기
+           scrollbar = list(enabled = TRUE)) %>% # 스크롤 만들기
+  hc_yAxis(title = list(text = "총 수량")) %>%
+  hc_plotOptions(bar = list(stacking = "normal", 
+                            pointPadding = 0, groupPadding = 0, borderWidth = 0.5)) %>% 
+  hc_add_theme(custom_theme)
+```
+
+##
+## 총판매 수량과 노_평_분수량
+###      
+###      
+
+```{r}
+
+df <- dt %>%
+  mutate(DT = substr(BROAD_DT,1,7)) %>%
+  group_by(DT) %>%
+  summarise(노_평_분수량 = sum(노_평_분수량),
+                   Y_REAL = sum(Y_REAL))
+
+highchart() %>% 
+  hc_add_series(name="총수량", df$Y_REAL, type="column", color='rgba(255, 192, 203, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="최근 방송 노출평균수량", df$노_평_분수량, type="column", color='rgba(68, 170, 255, 0.30)', showInLegend=FALSE) %>% 
+    hc_title(text = "최근 방송 노출평균수량") %>%  ## 주제목  
+  hc_subtitle(text = "빨간색 : 실제  , 파란색 : 노충평균수량") %>% # 부제목
+  hc_add_series(name="최근 방송 노출평균수량", df$노_평_분수량, type="spline", color="#44AAFF") %>% 
+  hc_add_series(name="총수량",df$Y_REAL, type="spline", color="#FFC0Cb") %>% 
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.3f}<br/>",
+             shared = FALSE) %>% 
+  hc_yAxis(title=list(text='총판매수량')) %>% 
+  hc_xAxis(title=list(text='월'))  %>%
+  hc_xAxis(categories = df$DT) #x축 값 넣
+```
+
+
+##
+## 총판매 수량과 노_직_분수량
+###      
+###      
+
+```{r}
+
+df2 <- dt %>%
+  mutate(DT = substr(BROAD_DT,1,7)) %>%
+  group_by(DT) %>%
+  summarise(노_직_분수량 = sum(노_직_분수량),
+                   Y_REAL = sum(Y_REAL))
+
+highchart() %>% 
+  hc_add_series(name="총수량", df2$Y_REAL, type="column", color='rgba(255, 192, 203, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="노_직_분수량", df2$노_직_분수량, type="column", color='rgba(68, 170, 255, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="노_직_분수량", df2$노_직_분수량, type="spline", color="#44AAFF") %>% 
+  hc_add_series(name="총수량",df2$Y_REAL, type="spline", color="#FFC0Cb") %>% 
+      hc_title(text = "최근 방송 직전평균수량") %>%  ## 주제목  
+  hc_subtitle(text = "빨간색 : 실제  , 파란색 : 직전평균수량") %>% # 부제목
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.3f}<br/>",
+             shared = FALSE) %>% 
+  
+  hc_yAxis(title=list(text='총판매수량')) %>% 
+  hc_xAxis(title=list(text='월'))  %>%
+  hc_xAxis(categories = df2$DT) #x축 값 넣
+```
+
+##
+## 총판매 수량과 노_전달가중시수량
+###      
+###      
+
+```{r}
+
+df3 <- dt %>%
+  mutate(DT = substr(BROAD_DT,1,7)) %>%
+  group_by(DT) %>%
+  summarise(노_전달가중시수량 = sum(노_전달가중시수량),
+                   Y_REAL = sum(Y_REAL))
+
+highchart() %>% 
+  hc_add_series(name="총수량", df3$Y_REAL, type="column", color='rgba(255, 192, 203, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="노_전달가중시수량", df3$노_전달가중시수량, type="column", color='rgba(68, 170, 255, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="노_전달가중시수량", df3$노_전달가중시수량, type="spline", color="#44AAFF") %>% 
+  hc_add_series(name="총수량",df3$Y_REAL, type="spline", color="#FFC0Cb") %>% 
+        hc_title(text = "전달 가중평균수량") %>%  ## 주제목  
+  hc_subtitle(text = "빨간색 : 실제  , 파란색 : 전달 가중평균수량") %>% # 부제목
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.3f}<br/>",
+             shared = FALSE) %>% 
+  hc_yAxis(title=list(text='총판매수량')) %>% 
+  hc_xAxis(title=list(text='월'))  %>%
+  hc_xAxis(categories = df3$DT) #x축 값 넣
+```
+##
+## 총판매 수량과 전달주문수량
+###      
+###      
+```{r}
+
+df4 <- dt %>%
+  mutate(DT = substr(BROAD_DT,1,7)) %>%
+  group_by(DT) %>%
+  summarise(전달주문수량 = sum(전달주문수량),
+                     Y_REAL = sum(Y_REAL))
+
+highchart() %>% 
+  hc_add_series(name="총수량", df4$Y_REAL, type="column", color='rgba(255, 192, 203, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="전달주문수량", df4$전달주문수량, type="column", color='rgba(68, 170, 255, 0.30)', showInLegend=FALSE) %>% 
+  hc_add_series(name="전달주문수량", df4$전달주문수량, type="spline", color="#44AAFF") %>% 
+  hc_add_series(name="총수량",df4$Y_REAL, type="spline", color="#FFC0Cb") %>% 
+          hc_title(text = "전달주문수량") %>%  ## 주제목  
+  hc_subtitle(text = "빨간색 : 실제  , 파란색 : 전달주문수량") %>% # 부제목
+  hc_tooltip(pointFormat = "<span style=\"color:{series.color}\">{series.name}</span>:
+             {point.y:.3f}<br/>",
+             shared = FALSE) %>% 
+  hc_yAxis(title=list(text='총판매수량')) %>% 
+  hc_xAxis(title=list(text='월'))  %>%
+  hc_xAxis(categories = df4$DT) #x축 값 넣
+```
+
+```{r}
+dt %>%
+  dplyr::select(Y_REAL,노_평_분수량,노_직_분수량,노_전달가중시수량,전달주문수량) %>%
+  chart.Correlation(histogram=TRUE, pch=19)
+```

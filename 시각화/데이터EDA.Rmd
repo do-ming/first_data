@@ -1,0 +1,234 @@
+---
+title: "R Notebook"
+output: html_notebook
+
+---
+<style type="text/css">
+
+body, td {
+   font-size: 12px;
+}
+code.r{
+  font-size: 12px;
+}
+pre {
+  font-size: 12px
+}
+</style>
+
+```{r set up ,include=FALSE}
+library(knitr)
+knitr::opts_chunk$set(cache = T, warning = F,
+                      message = F, echo = T, dpi = 180,
+                      fig.width = 8, fig.height = 5)
+
+theme_set(theme_bw() +
+         theme(plot.title = element_text(size = 15, face = "bold"),
+               plot.subtitle = element_text(size = 12, face = "bold"),
+               axis.text.x = element_text(size = 8),
+               axis.text.y = element_text(size = 8),
+               axis.title.x = element_text(size = 12),
+               axis.title.y = element_text(size = 12),
+               legend.text =element_text(size = 12),
+               legend.title =element_text(size = 12)
+              )
+          )
+
+# tidymodels
+for (package in c('janitor','skimr', 'correlationfunnel', 'DataExplorer')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+# tidymodels
+for (package in c('gghighlight', 'patchwork', 'ggplot2', 'GGally', 'highcharter','correlationfunnel')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+
+# Core
+for (package in c('doParallel', 'tidyverse', 'tidyquant', 'knitr')) {
+  if (!require(package, character.only=T, quietly=T)) {
+    install.packages(package)
+    library(package, character.only=T)
+  }
+}
+all_cores <- parallel::detectCores(logical = FALSE)
+registerDoParallel(cores = all_cores)
+```
+
+
+```{r}
+
+hotels <- readr::read_csv("https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-02-11/hotels.csv") %>%
+  clean_names()
+  # select(순서,everthing())
+
+hotel_stays <- hotels %>%
+  filter(is_canceled == 0) %>%
+  mutate(
+    children = case_when(
+      children + babies > 0 ~ "children",
+      TRUE ~ "none"
+    ),
+    required_car_parking_spaces = case_when(
+      required_car_parking_spaces > 0 ~ "parking",
+      TRUE ~ "none"
+    )
+  ) %>%
+  select(-is_canceled, -reservation_status, -babies)
+
+hotel_stays
+# kable(head(hotel_stays), caption = "table with kable") #깔끔한 테이블 표현 (양 적을때)
+```
+
+```{r}
+hotel_stays %>% plot_missing()
+```
+
+```{r}
+hotel_stays %>% plot_bar(maxcat = 50, nrow = 3)
+```
+
+```{r}
+hotel_stays %>% plot_histogram()
+```
+
+```{r}
+skim(hotel_stays)
+```
+
+```{r}
+hotel_stays %>%
+  count(children)
+```
+
+
+## 막대그래프
+
+```{r fig.height=5, fig.width=10}
+library(plotly)
+hotel_stays %>%
+  mutate(arrival_date_month = factor(arrival_date_month,
+    levels = month.name
+  )) %>%
+  count(hotel, arrival_date_month, children) %>%
+  group_by(hotel, children) %>%
+  mutate(proportion = n / sum(n)) %>%
+  # plot_ly( x = ~arrival_date_month , y = ~proportion, color = ~children,type = 'bar', name = 'aa') +
+  # facet_wrap(~hotel, ncol= 5, scales = "free")
+  ggplot(aes(arrival_date_month, proportion, fill = children)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  facet_wrap(~hotel, nrow = 2) +
+  labs(
+    x = NULL,
+    y = "Proportion of hotel stays",
+    fill = NULL) +
+  ggplot2::theme_light()
+# a
+# ggplotly(a)
+  # )
+```
+
+
+## 막대 그래프
+```{r}
+
+colorsPuYe <- c("#5C374C", "#985277", "#CE6A85", "#FFCF6A", "#FFB742", "#E9692C")
+
+hotel_stays %>%
+  count(hotel, required_car_parking_spaces, children) %>%
+  group_by(hotel, children) %>%
+  mutate(proportion = n / sum(n)) %>%
+  ggplot(aes(required_car_parking_spaces, proportion, fill = children)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  facet_wrap(~hotel, nrow = 2) +
+  labs(
+    x = NULL,
+    y = "Proportion of hotel stays",
+    fill = NULL
+  ) +
+  coord_flip() +
+  geom_label(aes(label = round(proportion,2)), size = 3, position=position_dodge(width=0.9))
+  # scale_fill_gradient(low=colorsPuYe[3], high=colorsPuYe[1], guide = "none")
+
+```
+
+
+## 데이터 한판에 보기
+```{r}
+hotel_stays %>%
+  select(
+    children, adr,
+    required_car_parking_spaces,
+    total_of_special_requests
+  ) %>%
+  ggpairs(mapping = aes(color = children))
+```
+
+# 산점도 그래프
+```{r}
+hotel_stays %>%
+    ggplot(aes(lead_time, adr)) +
+    geom_point(color = palette_light()["blue"], alpha = 0.15) +
+    geom_smooth(method = "lm") +
+    scale_y_log10(label = scales::dollar_format()) +
+    theme_tq() 
+    # labs(title = "Engine Horsepower vs MSRP by Vehicle Age",
+    #      x = "Engine HP", y = "MSRP (log scale)")
+```
+
+## 하이라이트 적용
+```{r}
+hotel_stays %>%
+    ggplot(aes(lead_time, adr)) +
+    geom_point(color = palette_light()["blue"], alpha = 0.15) +
+    geom_smooth(method = "lm") +
+    scale_y_log10(label = scales::dollar_format()) +
+    gghighlight(lead_time > 600, label_key = lead_time, 
+                unhighlighted_colour = alpha("grey", 0.05),
+                label_params = list(size = 2.5)) +
+
+    theme_tq() 
+    # labs(title = "Engine Horsepower vs MSRP by Vehicle Age",
+    #      x = "Engine HP", y = "MSRP (log scale)")
+```
+
+```{r}
+# select_if(is.numeric) 숫자형만
+
+hotel_stays %>% select(-reservation_status_date) %>% binarize(n_bins = 5, thresh_infreq = 0.01 , name_infreq = "OUTHER", one_hot = T) %>%
+    correlate(lead_time__5_27) %>%
+    plot_correlation_funnel()
+
+
+```
+
+
+```{r}
+hotel_stays %>% ggpairs(columns=c(2,7,26), aes(colour=children, alpha=0.4),
+                 lower=list(continuous=wrap("smooth", method="loess", se=F)))
+```
+
+
+```{r}
+hotel_stays %>%
+  count(children)
+```
+
+```{r}
+hotel_stays %>%
+  count(children)
+```
+
+```{r}
+hotel_stays %>%
+  count(children)
+```
+
